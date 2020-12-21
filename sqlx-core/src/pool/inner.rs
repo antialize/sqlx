@@ -94,7 +94,7 @@ impl<DB: Database> SharedPool<DB> {
             panic!("BUG: connection queue overflow in release()");
         }
 
-        info!("Pool release {}", self.size());
+        info!("Pool release {} {}", self.num_idle(), self.size());
         if let Some(waker) = self.waiters.pop() {
             waker.wake();
         }
@@ -133,7 +133,7 @@ impl<DB: Database> SharedPool<DB> {
         }
 
         let mut waiter = None;
-
+        info!("Waiting for connections: {}", self.waiters.len());
         timeout(
             deadline_as_timeout::<DB>(deadline)?,
             // `poll_fn` gets us easy access to a `Waker` that we can push to our queue
