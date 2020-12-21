@@ -2,6 +2,7 @@ use super::inner::{DecrementSizeGuard, SharedPool};
 use crate::connection::Connection;
 use crate::database::Database;
 use crate::error::Error;
+use log::info;
 use sqlx_rt::spawn;
 use std::fmt::{self, Debug, Formatter};
 use std::ops::{Deref, DerefMut};
@@ -58,6 +59,7 @@ impl<DB: Database> DerefMut for PoolConnection<DB> {
 impl<DB: Database> PoolConnection<DB> {
     /// Explicitly release a connection from the pool
     pub fn release(mut self) -> DB::Connection {
+        info!("Release connection");
         self.live
             .take()
             .expect("PoolConnection double-dropped")
@@ -69,10 +71,13 @@ impl<DB: Database> PoolConnection<DB> {
 /// Returns the connection to the [`Pool`][crate::pool::Pool] it was checked-out from.
 impl<DB: Database> Drop for PoolConnection<DB> {
     fn drop(&mut self) {
+        info!("Pool connection dropped");
         if let Some(mut live) = self.live.take() {
             let pool = self.pool.clone();
 
             if live.raw.should_flush() {
+                info!("Flush");
+
                 spawn(async move {
                     // flush the connection (will immediately return if not needed) before
                     // we fully release to the pool
@@ -88,6 +93,7 @@ impl<DB: Database> Drop for PoolConnection<DB> {
                     }
                 });
             } else {
+                info!("Release");
                 // nothing to flush, release immediately outside of a spawn
                 pool.release(live.float(&pool));
             }
