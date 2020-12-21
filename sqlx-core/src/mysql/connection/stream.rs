@@ -165,7 +165,7 @@ impl MySqlStream {
             }
             let mut header = data.as_ref();
             let packet_size = header.get_uint_le(3) as usize;
-            if package_size > 100 {
+            if packet_size > 100 {
                 info!("About to read package of size {}", packet_size);
             }
             let sequence_id = header.get_u8();
