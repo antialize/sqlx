@@ -10,6 +10,7 @@ use crate::mysql::protocol::response::{EofPacket, ErrPacket, OkPacket, Status};
 use crate::mysql::protocol::{Capabilities, Packet};
 use crate::mysql::{MySqlConnectOptions, MySqlDatabaseError};
 use crate::net::{MaybeTlsStream, Socket};
+use log::{self, info};
 
 enum RecvPackageState {
     ReadingHeader { data: [u8; 4], progress: usize },
@@ -145,6 +146,12 @@ impl MySqlStream {
         // https://dev.mysql.com/doc/dev/mysql-server/8.0.12/page_protocol_basic_packets.html
         // https://mariadb.com/kb/en/library/0-packet/#standard-packet
 
+        match &self.recv_package_state {
+            RecvPackageState::Done => (),
+            RecvPackageState::ReadingHeader{data, progress} => info!("Resumed read package, while reading header progress: {}/{}", progress, 4),
+            RecvPackageState::ReadingData{data, progress} => info!("Resumed read package, while reading data progress: {}/{}", progress, data.len()),
+        }
+
         if let RecvPackageState::Done = self.recv_package_state {
             self.recv_package_state = RecvPackageState::ReadingHeader {
                 data: [0; 4],
@@ -158,6 +165,7 @@ impl MySqlStream {
             }
             let mut header = data.as_ref();
             let packet_size = header.get_uint_le(3) as usize;
+            info!("About to read package of size {}", packet_size);
             let sequence_id = header.get_u8();
             self.sequence_id = sequence_id.wrapping_add(1);
             let mut data = Vec::new();
