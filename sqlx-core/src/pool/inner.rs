@@ -7,6 +7,7 @@ use crate::pool::{deadline_as_timeout, PoolOptions};
 use crossbeam_queue::{ArrayQueue, SegQueue};
 use futures_core::task::{Poll, Waker};
 use futures_util::future;
+use log::info;
 use sqlx_rt::{sleep, spawn, timeout};
 use std::cmp;
 use std::mem;
@@ -77,6 +78,7 @@ impl<DB: Database> SharedPool<DB> {
 
     pub(super) fn release(&self, mut floating: Floating<'_, Live<DB>>) {
         if let Some(test) = &self.options.after_release {
+            info!("Pool release drop");
             if !test(&mut floating.raw) {
                 // drop the connection and do not return to the pool
                 return;
@@ -92,6 +94,7 @@ impl<DB: Database> SharedPool<DB> {
             panic!("BUG: connection queue overflow in release()");
         }
 
+        info!("Pool release {}", self.size());
         if let Some(waker) = self.waiters.pop() {
             waker.wake();
         }
