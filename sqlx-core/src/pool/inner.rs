@@ -180,15 +180,18 @@ impl<DB: Database> SharedPool<DB> {
         let start = Instant::now();
         let deadline = start + self.options.connect_timeout;
         let mut waited = !self.options.fair;
-
+        info!("acquire connection");
         // Unless the pool has been closed ...
         while !self.is_closed() {
             // Don't cut in line
             if waited || self.waiters.is_empty() {
+                info!("there no waiters");
                 // Attempt to immediately acquire a connection. This will return Some
                 // if there is an idle connection in our channel.
                 if let Some(conn) = self.pop_idle() {
+                    info!("got idle connection");
                     if let Some(live) = check_conn(conn, &self.options).await {
+                        info!("Got connection 1");
                         return Ok(live);
                     }
                 }
@@ -196,8 +199,12 @@ impl<DB: Database> SharedPool<DB> {
 
             if let Some(guard) = self.try_increment_size() {
                 // pool has slots available; open a new connection
+                info!("Create new connection");
                 match self.connection(deadline, guard).await {
-                    Ok(Some(conn)) => return Ok(conn),
+                    Ok(Some(conn)) => {
+                        info!("Got connection 2");
+                        return Ok(conn)
+                    },
                     // [size] is internally decremented on _retry_ and _error_
                     Ok(None) => continue,
                     Err(e) => return Err(e),
@@ -206,6 +213,7 @@ impl<DB: Database> SharedPool<DB> {
 
             // Wait for a connection to become available (or we are allowed to open a new one)
             // Returns an error if `deadline` passes
+            info!("Wait for connection");
             self.wait_for_conn(deadline).await?;
 
             waited = true;
